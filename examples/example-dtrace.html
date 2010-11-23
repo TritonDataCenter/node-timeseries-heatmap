@@ -1,0 +1,275 @@
+<!doctype html>
+<html>
+  <head>
+    <style type="text/css">
+      .row_selected { background-color: #a1a926; color: white }
+      body { font: 62.5% "Trebuchet MS", sans-serif; margin: 50px;}
+      #toolbar { padding: 10px 4px; }
+    </style>	
+
+    <link type="text/css" href="css/ui-lightness/jquery-ui-1.8.6.custom.css" rel="stylesheet" />	
+    <script type="text/javascript" src="js/jquery-1.4.4.min.js"></script>
+    <script type="text/javascript" src="js/jquery-ui-1.8.6.custom.min.js"></script>
+    <script type="text/javascript" src="js/jquery.dataTables.js"></script>
+    <script type="text/javascript">
+
+var rows = {};
+var selected = [];
+var table;
+var gen = 0;
+var paused = false;
+var base = 0;
+var zoomin = 0.8;
+var panfactor = 0.2;
+
+var conf = { nbuckets: 0, min: 0, max: 0, nsamples: 60 };
+
+var updateDecomposed = function (decomp)
+{
+	for (elem in decomp) {
+		if (!rows.hasOwnProperty(elem))
+			rows[elem] = table.fnAddData([ elem ]);
+	}
+}
+
+var update = function ()
+{
+	var img = '/heatmap?gen=' + gen++;
+	var c;
+
+	if (selected.length > 0)
+		img += '&selected=' + selected.join(',')
+
+	if (paused)
+		img += '&base=' + base;
+
+	for (c in conf) {
+		if (conf[c])
+			img += '&' + c + '=' + conf[c];
+	}
+
+	$.ajax({ type: 'GET', url: img, success: function (rval) {
+		$('#heatmap').attr('src', 'data:image/png;base64,' +
+		    rval.image);
+
+		updateDecomposed(rval.decomposition);
+
+		if (!paused)
+			base = rval.base;
+	} });
+};
+
+var details = function (x, y)
+{
+	var url = '/details?base=' + base;
+	var pad = function (val) { return ((val < 10 ? '0' : '') + val); };
+
+	for (c in conf) {
+		if (conf[c])
+			url += '&' + c + '=' + conf[c];
+	}
+
+	url += '&x=' + x + '&y=' + y;
+
+	$.ajax({ type: 'GET', url: url, success: function (rval) {
+		var d = new Date(rval.sample * 1000);
+
+		var dstr = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' +
+		    d.getDate() + ' ' + pad(d.getHours()) + ':' +
+		    pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+
+		$("#dialog").dialog('close');
+		$("#dialog").dialog('option', 'title', 'Details at ' + dstr);
+		$("#dialog-text").text('Decomposition of samples between ' +
+		    rval.min + ' and ' + rval.max + ' at ' + dstr + ':');
+
+		var data = [];
+
+		for (d in rval.decomposition)
+			data.push([ d, rval.decomposition[d] ]);
+
+		data.sort(function (lhs, rhs) { return (rhs[1] - lhs[1]); });
+
+		$('#dialog-decomposed').dataTable({
+			aaData: data,
+			bFilter: false,
+			bDestroy: true,
+			bJQueryUI: true,
+			bAutoWidth: true,
+			sScrollY: '200px',
+			bSort: false,
+			bPaginate: false,
+			bScrollInfinite: true,
+			aoColumns: [
+				{ sTitle: 'Element' },
+				{ sTitle: 'Samples' }
+			]
+		});
+
+		$("#dialog").dialog('open');
+	} });
+}
+
+var zoom = function (factor)
+{
+	var nsamples = Math.floor(conf.nsamples * factor);
+	base += Math.floor((conf.nsamples - nsamples) / 2);
+	conf.nsamples = nsamples;
+	update();
+}
+
+var pan = function (factor)
+{
+	base += Math.floor(conf.nsamples * factor)
+	update();
+}
+
+$(document).ready(function() {
+	$("#decomposed tbody").click(function(event) {
+		if (!event.shiftKey) {
+			$(table.fnSettings().aoData).each(function (){
+				$(this.nTr).removeClass('row_selected');
+			});
+
+			selected = [];
+		}
+
+		if (event.ctrlKey) {
+			update();
+			return;
+		}
+
+		$(event.target.parentNode).addClass('row_selected');
+		selected.push(table.fnGetData(event.target.parentNode)[0]);
+		update();
+	});
+
+	$("#dialog").dialog({ autoOpen: false, height: 300 });
+
+	table = $('#decomposed').dataTable({
+		aaData: [],
+		bFilter: false,
+		bJQueryUI: true,
+		bAutoWidth: true,
+		sScrollY: '240px',
+		bPaginate: false,
+		bScrollInfinite: true,
+		aoColumns: [
+			{ sTitle: 'Element' }
+		]
+	});
+
+	$("#nbuckets").slider({
+		range: "min",
+		min: 0,
+		max: 200,
+		value: 100,
+		stop: function(event, ui) {
+			conf.nbuckets = ui.value;
+			update();
+		}
+	});
+
+	$("#range").slider({
+		orientation: "vertical",
+		range: true,
+		min: 0,
+		max: 100000,
+		values: [ 0, 100000 ],
+		stop: function(event, ui) {
+			conf.min = ui.values[0];
+			conf.max = ui.values[1];
+			update();
+		}	
+	});
+
+	$("#pause").button({
+		text: false,
+		icons: { primary: "ui-icon-pause" },
+	}).click(function () {
+		var options;
+
+		if ($(this).text() == "play") {
+			options = {
+				label: "pause",
+				icons: { primary: "ui-icon-pause" }
+			};
+			paused = false;
+		} else {
+			options = {
+				label: "play",
+				icons: { primary: "ui-icon-play" }
+			};
+			paused = true;
+		}
+
+		$(this).button("option", options );	
+	});
+
+	$('#heatmap').click(function (event) {
+		details(event.offsetX, event.offsetY);
+	});
+
+	$("#zoomin").button({
+		text: false,
+		icons: { primary: "ui-icon-zoomin" }
+	}).click(function () { zoom(zoomin); });
+
+	$("#zoomout").button({
+		text: false,
+		icons: { primary: "ui-icon-zoomout" }
+	}).click(function () { zoom(1 / zoomin); });
+
+	$("#earlier").button({
+		text: false,
+		icons: { primary: "ui-icon-seek-prev" }
+	}).click(function () { pan(-panfactor); })
+
+	$("#later").button({
+		text: false,
+		icons: { primary: "ui-icon-seek-next" }
+	}).click(function () { pan(panfactor); })
+
+	setInterval(function () {
+		if (!paused)
+			update();
+	}, 1000);
+});
+
+    </script>
+  </head>
+  <body>
+<table>
+<tr>
+<td width=250px>
+<table cellpadding="0" cellspacing="0"
+    border="0" class="display" id="decomposed"><tbody></tbody></table> 
+<td width=1000px>
+
+<table width=97%>
+<td align="left">
+	<span id="toolbar" class="ui-widget-header ui-corner-all">
+		<button id="earlier">earlier</button>
+		<button id="pause">pause</button>
+		<button id="later">later</button>
+		<button id="zoomin">zoomin</button>
+		<button id="zoomout">zoomout</button>
+	</span>	
+<td align="right">
+		<div id="nbuckets" style="width:200px;"></div>
+</table>
+
+<div style="padding:10px;height:300px;width:1000px"><img id="heatmap"></div>
+<td>
+<div id="range" style="height:300px;"></div>
+
+</table>
+
+<div id="dialog" title="Details">
+  <div id="dialog-text"></div>
+  <table cellpadding="0" cellspacing="0"
+      border="0" class="display" id="dialog-decomposed"><tbody></tbody></table> 
+</div>
+
+</body>
+</html>
