@@ -152,16 +152,18 @@ var dynamic = function (req, res)
 
 		if (uri.query.selected) {
 			var selected = uri.query.selected.split(','), i;
+			var already = {};
 
 			for (i = 0; i < selected.length; i++) {
 				var data = decomposed[selected[i]];
 
-				if (!data)
+				if (!data || already[selected[i]])
 					continue;
 
 				var nary = heatmap.bucketize(data, conf);
 				heatmap.deduct(primary, nary);
 				datasets.push(nary);
+				already[selected[i]] = true;
 
 				hue.push((hue[hue.length - 1] + (91)) % 360);
 			}
