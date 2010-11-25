@@ -230,6 +230,31 @@ $(document).ready(function() {
 		icons: { primary: "ui-icon-seek-next" }
 	}).click(function () { pan(panfactor); })
 
+	$("#isolate").button({
+		text: false,
+		icons: { primary: "ui-icon-radio-on" },
+	}).click(function () {
+		var options;
+
+		if ($(this).text() == "isolate") {
+			options = {
+				label: "integrate",
+				icons: { primary: "ui-icon-radio-off" }
+			};
+			conf.isolate = 1;
+		} else {
+			options = {
+				label: "isolate",
+				icons: { primary: "ui-icon-radio-on" }
+			};
+			conf.isolate = 0;
+		}
+
+		update();
+
+		$(this).button("option", options );	
+	});
+
 	setInterval(function () {
 		if (!paused)
 			update();
@@ -254,6 +279,7 @@ $(document).ready(function() {
 		<button id="later">later</button>
 		<button id="zoomin">zoomin</button>
 		<button id="zoomout">zoomout</button>
+		<button id="isolate">isolate</button>
 	</span>	
 <td align="right">
 		<div id="nbuckets" style="width:200px;"></div>

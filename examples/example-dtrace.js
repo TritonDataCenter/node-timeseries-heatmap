@@ -145,10 +145,15 @@ var dynamic = function (req, res)
 		conf.base = sample - conf.nsamples;
 
 	if (uri.pathname == '/heatmap') {
-		var primary = heatmap.bucketize(total, conf);
+		var primary, hue = [ 21 ], datasets;
 
-		var hue = [ 21 ];
-		var datasets = [ primary ];
+		if (!uri.query.isolate) {
+			primary = heatmap.bucketize(total, conf);
+			datasets = [ primary ];
+		} else {
+			primary = undefined;
+			datasets = [];
+		}
 
 		if (uri.query.selected) {
 			var selected = uri.query.selected.split(','), i;
@@ -161,14 +166,25 @@ var dynamic = function (req, res)
 					continue;
 
 				var nary = heatmap.bucketize(data, conf);
-				heatmap.deduct(primary, nary);
+
+				if (primary)
+					heatmap.deduct(primary, nary);
+
 				datasets.push(nary);
 				already[selected[i]] = true;
 
 				hue.push((hue[hue.length - 1] + (91)) % 360);
 			}
 		}
-	
+
+		if (uri.query.isolate)
+			hue.shift();
+
+		if (datasets.length === 0) {
+			datasets = [ heatmap.bucketize({}, conf) ];
+			hue = [ 0 ];
+		}
+
 		heatmap.normalize(datasets);
 
 		conf.hue = hue;
