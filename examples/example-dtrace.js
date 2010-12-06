@@ -39,6 +39,8 @@ var prog;
 
 try {
 	prog = fs.readFileSync(fname);
+
+
 } catch (err) {
 	fatal('could not open file "' + fname + '": ' + err);
 }
@@ -238,15 +240,24 @@ var dynamic = function (req, res)
 
 http.createServer(function (req, res) {
 	var uri = url.parse(req.url).pathname;
+	var index = false;
 
-	if (uri == '/')
+	if (uri == '/') {
+		index = true;
 		uri = '/' + name + '.html';
+	}
 
 	var filename = path.join(process.cwd(), uri);
 
 	fs.readFile(filename, function (err, file) {
-		if (err)
+		if (err) {
+			if (index) {
+				fatal('could not find index file "' +
+				     filename + '"');
+			}
+
 			return (dynamic(req, res));
+		}
 
 		res.writeHead(200);
 		res.write(file);
