@@ -207,7 +207,11 @@ $(document).ready(function() {
 	});
 
 	$('#heatmap').click(function (event) {
-		details(event.offsetX, event.offsetY);
+		var offset = $('#heatmap').offset(); 
+    		var x = event.pageX - offset.left;
+    		var y = event.pageY - offset.top;
+
+		details(x, y);
 	});
 
 	$("#zoomin").button({
