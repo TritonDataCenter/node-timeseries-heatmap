@@ -133,6 +133,11 @@ var dynamic = function (req, res)
 		y: 0
 	};
 
+	booleans = {
+		weighbyrange: true,
+		linear: true
+	};
+
 	res.writeHead(200, {
 		'Content-Type': 'application/json',
 		'Transfer-Encoding': 'chunked'
@@ -141,6 +146,9 @@ var dynamic = function (req, res)
 	for (c in uri.query) {
 		if (conf.hasOwnProperty(c))
 			conf[c] = parseInt(uri.query[c], 10);
+
+		if (booleans[c])
+			conf[c] = parseInt(uri.query[c], 10) ? true : false;
 	}
 
 	if (!conf.base)
@@ -187,7 +195,7 @@ var dynamic = function (req, res)
 			hue = [ 0 ];
 		}
 
-		heatmap.normalize(datasets);
+		heatmap.normalize(datasets, conf);
 
 		conf.hue = hue;
 		conf.saturation = [ 0, .9 ];

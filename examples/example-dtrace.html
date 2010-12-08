@@ -2,9 +2,25 @@
 <html>
   <head>
     <style type="text/css">
-      .row_selected { background-color: #a1a926; color: white }
-      body { font: 62.5% "Trebuchet MS", sans-serif; margin: 50px;}
-      #toolbar { padding: 10px 4px; }
+
+	/*
+	 * This is a kludge to get selections highlighted in their proper
+	 * color.  (In particular, it hard-codes the hue selection used on
+	 * the server.)  There are much better ways to do this (indeed, one
+	 * would be hard-pressed to find a dirtier way), but they're not
+	 * worth it for the demo.  Needless to say, don't emulate this
+	 * kludginess in something that is to be more serious...
+	 */
+	.selected0 { background-color: #35f218; color: white }
+	.selected1 { background-color: #189ff2; color: white }
+	.selected2 { background-color: #dc18f2; color: white }
+	.selected3 { background-color: #f27318; color: white }
+
+	body { font: 100% "Trebuchet MS", sans-serif; margin: 50px;}
+	#toolbar {
+      		font: 62.5% "Trebuchet MS", sans-serif;
+		padding: 10px 4px;
+	}
     </style>	
 
     <link type="text/css" href="css/ui-lightness/jquery-ui-1.8.6.custom.css" rel="stylesheet" />	
@@ -15,7 +31,8 @@
 
 var rows = {};
 var selected = [];
-var table;
+var classes = [ 'selected0', 'selected1', 'selected2', 'selected3' ];
+
 var gen = 0;
 var paused = false;
 var base = 0;
@@ -23,9 +40,14 @@ var zoomin = 0.8;
 var panfactor = 0.2;
 
 var conf = { nbuckets: 0, min: 0, max: 0, nsamples: 60 };
+var decomposed = {};
+
+var colors = [ 'red', 'blue', 'green' ];
 
 var updateDecomposed = function (decomp)
 {
+	var table = decomposed.primary;
+
 	for (elem in decomp) {
 		if (!rows.hasOwnProperty(elem))
 			rows[elem] = table.fnAddData([ elem ]);
@@ -90,7 +112,11 @@ var details = function (x, y)
 
 		data.sort(function (lhs, rhs) { return (rhs[1] - lhs[1]); });
 
-		$('#dialog-decomposed').dataTable({
+		$("#dialog-decomposed tbody").click(function(event) {
+			click('dialog', event);
+		});
+
+		decomposed.dialog = $('#dialog-decomposed').dataTable({
 			aaData: data,
 			bFilter: false,
 			bDestroy: true,
@@ -124,29 +150,55 @@ var pan = function (factor)
 	update();
 }
 
-$(document).ready(function() {
-	$("#decomposed tbody").click(function(event) {
-		if (!event.shiftKey) {
-			$(table.fnSettings().aoData).each(function (){
-				$(this.nTr).removeClass('row_selected');
+var click = function (which, event)
+{
+	var table, t, i, selection;
+	var c;
+
+	if (!event.shiftKey) {
+		/*
+		 * We want to deselect in all tables.
+		 */
+		for (t in decomposed) {
+			table = decomposed[t];
+
+			$(table.fnSettings().aoData).each(function () {
+				for (i = 0; i < classes.length; i++)
+					$(this.nTr).removeClass(classes[i]);
 			});
 
 			selected = [];
 		}
+	}
 
-		if (event.ctrlKey) {
-			update();
-			return;
-		}
-
-		$(event.target.parentNode).addClass('row_selected');
-		selected.push(table.fnGetData(event.target.parentNode)[0]);
+	if (event.altKey) {
 		update();
+		return;
+	}
+
+	table = decomposed[which];
+	selection = table.fnGetData(event.target.parentNode)[0];
+
+	for (i = 0; i < selected.length; i++) {
+		if (selected[i] == selection)
+			return;
+	}
+
+	c = classes[selected.length % classes.length];
+	$(event.target.parentNode).addClass(c);
+
+	selected.push(selection);
+	update();
+}
+
+$(document).ready(function() {
+	$("#decomposed tbody").click(function(event) {
+		click('primary', event);
 	});
 
-	$("#dialog").dialog({ autoOpen: false, height: 300 });
+	$("#dialog").dialog({ autoOpen: false, width: 700, height: 400 });
 
-	table = $('#decomposed').dataTable({
+	decomposed.primary = $('#decomposed').dataTable({
 		aaData: [],
 		bFilter: false,
 		bJQueryUI: true,
@@ -180,6 +232,7 @@ $(document).ready(function() {
 			conf.min = ui.values[0];
 			conf.max = ui.values[1];
 			update();
+			$("#rangetext").text(conf.min + ' - ' + conf.max);
 		}	
 	});
 
@@ -234,23 +287,14 @@ $(document).ready(function() {
 		icons: { primary: "ui-icon-seek-next" }
 	}).click(function () { pan(panfactor); })
 
-	$("#isolate").button({
-		text: false,
-		icons: { primary: "ui-icon-radio-on" },
-	}).click(function () {
+	$("#isolate").button().click(function () {
 		var options;
 
 		if ($(this).text() == "isolate") {
-			options = {
-				label: "integrate",
-				icons: { primary: "ui-icon-radio-off" }
-			};
+			options = { label: "integrate" };
 			conf.isolate = 1;
 		} else {
-			options = {
-				label: "isolate",
-				icons: { primary: "ui-icon-radio-on" }
-			};
+			options = { label: "isolate" };
 			conf.isolate = 0;
 		}
 
@@ -259,6 +303,38 @@ $(document).ready(function() {
 		$(this).button("option", options );	
 	});
 
+	$("#weight").button().click(function () {
+		var options;
+
+		if ($(this).text() == "weight") {
+			options = { text: true, label: "count" };
+			conf.weighbyrange = 1;
+		} else {
+			options = { label: "weight" };
+			conf.weighbyrange = 0;
+		}
+
+		update();
+
+		$(this).button("option", options );	
+	});
+
+	$("#linear").button().click(function () {
+		var options;
+
+		if ($(this).text() == "linear") {
+			options = { label: "rank" };
+			conf.linear = 1;
+		} else {
+			options = { label: "linear" };
+			conf.linear = 0;
+		}
+
+		update();
+
+		$(this).button("option", options );	
+	});
+	
 	setInterval(function () {
 		if (!paused)
 			update();
@@ -284,6 +360,8 @@ $(document).ready(function() {
 		<button id="zoomin">zoomin</button>
 		<button id="zoomout">zoomout</button>
 		<button id="isolate">isolate</button>
+		<button id="weight">weight</button>
+		<button id="linear">linear</button>
 	</span>	
 <td align="right">
 		<div id="nbuckets" style="width:200px;"></div>
@@ -292,7 +370,11 @@ $(document).ready(function() {
 <div style="padding:10px;height:300px;width:1000px"><img id="heatmap"></div>
 <td>
 <div id="range" style="height:300px;"></div>
-
+<td>
+<div style="padding:10px">
+Displaying range:
+<div id="rangetext">0 - 100 ms</div>
+</div>
 </table>
 
 <div id="dialog" title="Details">
