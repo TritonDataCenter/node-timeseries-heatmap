@@ -53,4 +53,12 @@ rval = heatmap.bucketize([ [
     [ [ 20, 29 ], 60 ]
 ] ], { nbuckets: 10, min: 15, max: 25, nbuckets: 2 });
 
+rval = heatmap.bucketize([ [ 
+    [ [ 0, 0 ], 1 ],
+    [ [ 1, 1 ], 1 ],
+    [ [ 2, 2 ], 1 ]
+] ], { nbuckets: 3, min: 0, max: 3 });
 
+assert.deepEqual(rval, [ [ 1, 1, 1 ] ]);
+
+sys.puts(sys.inspect(rval));

@@ -1,16 +1,17 @@
 /*
  * This example allows one to interact with multidimensional heatmaps on a
  * live basis.  To run it, you will need to have node-libdtrace (in addition
- * to node-png.).  Run it by specifying a D script that contains two
- * aggregations:  one that is the total of all events and another that
- * decomposes those events in some dimension.  (Example scripts are provided
- * in example-dtrace-cpu.d and example-dtrace-syscall.d.)  Once started, it
- * will emit the script to stdout and listen on the specified port (8001 if
- * not specified via the PORT environment variable).  Then via a browser, go
- * to http://localhost:8001 -- you should see the live heatmap, and then be
- * able to click on decomposed elements to highlight them.  (In term of editing
- * or expanding this demo, note that the client-side code is contained in
- * example-dtrace.html.)
+ * to node-png).  Run it by specifying either a D script or a configuration
+ * file that points to a D script (see example-dtrace-cpu.conf for an example
+ * configuration file).  The D script must contain two aggregations:  one that
+ * is the total of all events and another that decomposes those events in some
+ * dimension.  (Example scripts are provided in example-dtrace-cpu.d and
+ * example-dtrace-syscall.d.)  Once started, it will emit the script to stdout
+ * and listen on the specified port (8001 if not specified via the PORT
+ * environment variable).  Then via a browser, go to http://localhost:8001 --
+ * you should see the live heatmap, and then be able to click on decomposed
+ * elements to highlight them.  (In term of editing or expanding this demo,
+ * note that the client-side code is contained in example-dtrace.html.)
  */
 var path = require('path');
 require.paths.unshift(path.dirname(__dirname) + '/lib');
@@ -31,26 +32,61 @@ var fatal = function (err)
 	process.exit(1);
 }
 
-if (process.argv.length <= 2)
-	fatal('expected D script to execute');
+var readConfiguration = function (fname)
+{
+	var conf;
+	var defaults = { min: 0, max: 100000 }, prop;
 
-var fname = process.argv[process.argv.length - 1];
-var prog;
+	try {
+		conf = fs.readFileSync(fname).toString();
+	} catch (err) {
+		fatal('could not open file "' + fname + '": ' + err);
+	}
 
-try {
-	prog = fs.readFileSync(fname);
+	try {
+		eval(conf);
+	} catch (err) {
+		d = defaults;
+		d.program = conf;
+		return;
+	}
 
+	if (!d || !(d instanceof Object)) {
+		fatal('configuration file "' + fname + '" did not set ' +
+		     'expected object "d"');
+	}
 
-} catch (err) {
-	fatal('could not open file "' + fname + '": ' + err);
+	if (!d.program) {
+		if (!d.script) {
+			fatal('did not find D script or program in ' +
+			     'configuration file "' + fname + '"');
+		}
+
+		try {
+			d.program = fs.readFileSync(d.script).toString();
+		} catch (err) {
+			fatal('could not open specified script "' +
+			    d.script + '": ' + err);
+		}
+	}
+
+	for (prop in defaults) {
+		if (!d.hasOwnProperty(prop))
+			d[prop] = defaults[prop];
+	}
 }
 
+if (process.argv.length <= 2)
+	fatal('expected D script to execute or configuration file');
+
+readConfiguration(process.argv[process.argv.length - 1]);
+
 sys.puts('vvv D program vvv');
-sys.puts(prog.toString());
+sys.puts(d.program);
 sys.puts('^^^ D program ^^^');
 
 dtp = new libdtrace.Consumer();
-dtp.strcompile(prog.toString());
+dtp.strcompile(d.program);
 dtp.go();
 
 var total = {};
@@ -114,12 +150,6 @@ var dynamic = function (req, res)
 	var conf, c;
 
 	sys.puts(sys.inspect(uri));
-
-	if (uri.pathname != '/heatmap' && uri.pathname != '/details') {
-		res.writeHead(404);
-		res.end();
-		return;
-	}
 
 	conf = {
 		height: 300,
@@ -243,7 +273,16 @@ var dynamic = function (req, res)
 		}
 
 		res.end(JSON.stringify(rval));
+		return;
 	}
+
+	if (uri.pathname == '/conf') {
+		res.end(JSON.stringify(d));
+		return;
+	}
+
+	res.writeHead(404);
+	res.end();
 }
 
 http.createServer(function (req, res) {

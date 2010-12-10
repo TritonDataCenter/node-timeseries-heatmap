@@ -191,12 +191,22 @@ var click = function (which, event)
 	update();
 }
 
-$(document).ready(function() {
+var initialize = function (config)
+{
+	var units = config.units ? config.units : '';
+
+	conf.min = config.min;
+	conf.max = config.max;
+
 	$("#decomposed tbody").click(function(event) {
 		click('primary', event);
 	});
 
 	$("#dialog").dialog({ autoOpen: false, width: 700, height: 400 });
+	$("#rangetext").text(conf.min + ' - ' + conf.max + ' ' + units);
+
+	if (config.title)
+		$("#title").text(config.title);
 
 	decomposed.primary = $('#decomposed').dataTable({
 		aaData: [],
@@ -225,14 +235,15 @@ $(document).ready(function() {
 	$("#range").slider({
 		orientation: "vertical",
 		range: true,
-		min: 0,
-		max: 100000,
-		values: [ 0, 100000 ],
+		min: conf.min,
+		max: conf.max,
+		values: [ 0, conf.max ],
 		stop: function(event, ui) {
 			conf.min = ui.values[0];
 			conf.max = ui.values[1];
 			update();
-			$("#rangetext").text(conf.min + ' - ' + conf.max);
+			$("#rangetext").text(conf.min + ' - ' + conf.max +
+			    ' ' + units);
 		}	
 	});
 
@@ -339,12 +350,23 @@ $(document).ready(function() {
 		if (!paused)
 			update();
 	}, 1000);
+};
+
+$(document).ready(function() {
+	$.ajax({ type: 'GET', url: '/conf', success: function (rval) {
+		initialize(rval);
+	} });
 });
 
     </script>
   </head>
   <body>
 <table>
+<tr>
+<td>
+<td colspan=2 align=center>
+<div id="title" style="padding:20px;font-size:22px">
+</div>
 <tr>
 <td width=250px>
 <table cellpadding="0" cellspacing="0"
@@ -373,7 +395,7 @@ $(document).ready(function() {
 <td>
 <div style="padding:10px">
 Displaying range:
-<div id="rangetext">0 - 100 ms</div>
+<div id="rangetext"></div>
 </div>
 </table>
 
