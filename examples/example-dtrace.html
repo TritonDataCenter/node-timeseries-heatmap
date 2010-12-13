@@ -298,54 +298,34 @@ var initialize = function (config)
 		icons: { primary: "ui-icon-seek-next" }
 	}).click(function () { pan(panfactor); })
 
-	$("#isolate").button().click(function () {
-		var options;
+	var booleans = {
+		isolate: { field: 'isolate', antonym: 'integrate' },
+		weight: { field: 'weighbyrange', antonym: 'count' },
+		linear: { field: 'linear', antonym: 'rank' },
+		decompose: { field: 'vomit', antonym: 'recompose' },
+	};
 
-		if ($(this).text() == "isolate") {
-			options = { label: "integrate" };
-			conf.isolate = 1;
-		} else {
-			options = { label: "isolate" };
-			conf.isolate = 0;
-		}
+	var clicker = function (label) {
+		return (function () {
+			var options;
 
-		update();
+			if ($(this).text() == label) {
+				options = { label: booleans[label].antonym };
+				conf[booleans[label].field] = 1;
+			} else {
+				options = { label: label };
+				conf[booleans[label].field] = 0;
+			}
 
-		$(this).button("option", options );	
-	});
+			update();
 
-	$("#weight").button().click(function () {
-		var options;
+			$(this).button("option", options);
+		})
+	};
 
-		if ($(this).text() == "weight") {
-			options = { text: true, label: "count" };
-			conf.weighbyrange = 1;
-		} else {
-			options = { label: "weight" };
-			conf.weighbyrange = 0;
-		}
+	for (var boolean in booleans)
+		$("#" + boolean).button({ test: true }).click(clicker(boolean));
 
-		update();
-
-		$(this).button("option", options );	
-	});
-
-	$("#linear").button().click(function () {
-		var options;
-
-		if ($(this).text() == "linear") {
-			options = { label: "rank" };
-			conf.linear = 1;
-		} else {
-			options = { label: "linear" };
-			conf.linear = 0;
-		}
-
-		update();
-
-		$(this).button("option", options );	
-	});
-	
 	setInterval(function () {
 		if (!paused)
 			update();
@@ -384,6 +364,7 @@ $(document).ready(function() {
 		<button id="isolate">isolate</button>
 		<button id="weight">weight</button>
 		<button id="linear">linear</button>
+		<button id="decompose">decompose</button>
 	</span>	
 <td align="right">
 		<div id="nbuckets" style="width:200px;"></div>

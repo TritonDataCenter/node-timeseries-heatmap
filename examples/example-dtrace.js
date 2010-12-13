@@ -186,6 +186,7 @@ var dynamic = function (req, res)
 
 	if (uri.pathname == '/heatmap') {
 		var primary, hue = [ 21 ], datasets;
+		var selected = [], elem;
 
 		if (!uri.query.isolate) {
 			primary = heatmap.bucketize(total, conf);
@@ -196,8 +197,21 @@ var dynamic = function (req, res)
 		}
 
 		if (uri.query.selected) {
-			var selected = uri.query.selected.split(','), i;
-			var already = {};
+			selected = uri.query.selected.split(',');
+		} else if (uri.query.vomit) {
+			/*
+			 * This is obscenely inefficient by every metric but
+			 * lines of code (but sometimes lines of code is
+			 * the metric that counts).  If this becomes a problem,
+			 * there are (many) much more efficient ways of doing
+			 * this...
+			 */
+			for (elem in decomposed)
+				selected.push(elem);
+		}
+
+		if (selected.length > 0) {
+			var already = {}, i;
 
 			for (i = 0; i < selected.length; i++) {
 				var data = decomposed[selected[i]];
