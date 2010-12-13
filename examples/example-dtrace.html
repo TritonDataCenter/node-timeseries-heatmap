@@ -300,6 +300,7 @@ var initialize = function (config)
 
 	var booleans = {
 		isolate: { field: 'isolate', antonym: 'integrate' },
+		exclude: { field: 'exclude', antonym: 'include' },
 		weight: { field: 'weighbyrange', antonym: 'count' },
 		linear: { field: 'linear', antonym: 'rank' },
 		decompose: { field: 'vomit', antonym: 'recompose' },
@@ -362,6 +363,7 @@ $(document).ready(function() {
 		<button id="zoomin">zoomin</button>
 		<button id="zoomout">zoomout</button>
 		<button id="isolate">isolate</button>
+		<button id="exclude">exclude</button>
 		<button id="weight">weight</button>
 		<button id="linear">linear</button>
 		<button id="decompose">decompose</button>

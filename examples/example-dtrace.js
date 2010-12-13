@@ -224,9 +224,12 @@ var dynamic = function (req, res)
 				if (primary)
 					heatmap.deduct(primary, nary);
 
-				datasets.push(nary);
 				already[selected[i]] = true;
 
+				if (uri.query.exclude)
+					continue;
+
+				datasets.push(nary);
 				hue.push((hue[hue.length - 1] + (91)) % 360);
 			}
 		}
