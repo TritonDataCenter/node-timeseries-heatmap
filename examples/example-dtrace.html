@@ -21,17 +21,30 @@
       		font: 62.5% "Trebuchet MS", sans-serif;
 		padding: 10px 4px;
 	}
+
+	.rotate {
+		/* Safari */
+		-webkit-transform: rotate(-90deg);
+
+		/* Firefox */
+		-moz-transform: rotate(-90deg);
+
+		/* Internet Explorer */
+		filter: progid:DXImageTransform.Microsoft.BasicImage(rotation=3);
+	}
     </style>	
 
     <link type="text/css" href="css/ui-lightness/jquery-ui-1.8.6.custom.css" rel="stylesheet" />	
     <script type="text/javascript" src="js/jquery-1.4.4.min.js"></script>
     <script type="text/javascript" src="js/jquery-ui-1.8.6.custom.min.js"></script>
     <script type="text/javascript" src="js/jquery.dataTables.js"></script>
+    <script type="text/javascript" src="js/jquery.flot.js"></script>
     <script type="text/javascript">
 
 var rows = {};
 var selected = [];
 var classes = [ 'selected0', 'selected1', 'selected2', 'selected3' ];
+var colors = [ '#35f218', '#189ff2', '#dc18f2', '#f27318' ];
 
 var gen = 0;
 var paused = false;
@@ -42,7 +55,15 @@ var panfactor = 0.2;
 var conf = { nbuckets: 0, min: 0, max: 0, nsamples: 60 };
 var decomposed = {};
 
-var colors = [ 'red', 'blue', 'green' ];
+var sampleToString = function (sample)
+{
+	var date = new Date(sample * 1000);
+	var pad = function (val) { return ((val < 10 ? '0' : '') + val); };
+
+	return (date.getFullYear() + '-' + (date.getMonth() + 1) + '-' +
+	    date.getDate() + ' ' + pad(date.getHours()) + ':' +
+	    pad(date.getMinutes()) + ':' + pad(date.getSeconds()));
+}
 
 var updateDecomposed = function (decomp)
 {
@@ -81,10 +102,62 @@ var update = function ()
 	} });
 };
 
+var updateDistribution = function ()
+{
+	var url = '/distribution?base=' + base;
+	var c;
+	var isolated = conf.isolated;
+	var title = 'Distribution from ' + sampleToString(base) + ' to ' +
+	    sampleToString(base + (conf.nsamples - 1));
+
+	for (c in conf) {
+		if (conf[c])
+			url += '&' + c + '=' + conf[c];
+	}
+
+	if (selected.length > 0)
+		url += '&selected=' + selected.join(',')
+
+	$.ajax({ type: 'GET', url: url, success: function (rval) {
+		var distribution = $("#distribution-dialog");
+		var elem, c = 0;
+
+		distribution.dialog('close');
+		distribution.dialog('option', 'title', title);
+		distribution.dialog('open');
+
+		var data = [];
+
+		if (rval.total) {
+			data.push({
+				data: rval.total,
+				lines: { show: true, lineWidth: 4 }
+			});
+		}
+
+		if (rval.decomposition) {
+			for (elem in rval.decomposition) {
+				data.push({
+					data: rval.decomposition[elem],
+					color: colors[c++ % colors.length],
+					lines: { show: true, lineWidth: 4 }
+				});
+			}
+		}
+
+		$.plot($("#distribution-plot"), data, {
+			grid: {
+				hoverable: true
+			}
+		});
+
+	} });
+};
+
 var details = function (x, y)
 {
 	var url = '/details?base=' + base;
-	var pad = function (val) { return ((val < 10 ? '0' : '') + val); };
+	var c;
 
 	for (c in conf) {
 		if (conf[c])
@@ -94,12 +167,7 @@ var details = function (x, y)
 	url += '&x=' + x + '&y=' + y;
 
 	$.ajax({ type: 'GET', url: url, success: function (rval) {
-		var d = new Date(rval.sample * 1000);
-
-		var dstr = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' +
-		    d.getDate() + ' ' + pad(d.getHours()) + ':' +
-		    pad(d.getMinutes()) + ':' + pad(d.getSeconds());
-
+		var dstr = sampleToString(rval.sample);
 		$("#dialog").dialog('close');
 		$("#dialog").dialog('option', 'title', 'Details at ' + dstr);
 		$("#dialog-text").text('Decomposition of samples between ' +
@@ -203,7 +271,11 @@ var initialize = function (config)
 	});
 
 	$("#dialog").dialog({ autoOpen: false, width: 700, height: 400 });
+	$("#distribution-dialog").dialog({ autoOpen: false,
+	    width: 900, height: 410 });
 	$("#rangetext").text(conf.min + ' - ' + conf.max + ' ' + units);
+	$("#distribution-xaxis").text('Value' + (config.units ? 
+	    (' (' + config.units + ')') : ''));
 
 	if (config.title)
 		$("#title").text(config.title);
@@ -306,6 +378,10 @@ var initialize = function (config)
 		decompose: { field: 'vomit', antonym: 'recompose' },
 	};
 
+	$("#distribution").button({
+		text: true
+	}).click(updateDistribution);
+
 	var clicker = function (label) {
 		return (function () {
 			var options;
@@ -367,6 +443,7 @@ $(document).ready(function() {
 		<button id="weight">weight</button>
 		<button id="linear">linear</button>
 		<button id="decompose">decompose</button>
+		<button id="distribution">distribution</button>
 	</span>	
 <td align="right">
 		<div id="nbuckets" style="width:200px;"></div>
@@ -386,6 +463,22 @@ Displaying range:
   <div id="dialog-text"></div>
   <table cellpadding="0" cellspacing="0"
       border="0" class="display" id="dialog-decomposed"><tbody></tbody></table> 
+</div>
+
+<div id="distribution-dialog" title="Details">
+  <table align="center" cellpadding="0" cellspacing="0"> 
+  <tr>
+  <td align="right">
+    <div id="distribution-yaxis" class="rotate">Samples</div>
+  <td align="center">
+    <div id="distribution-plot" style="width:775px;height:300px"></div>
+  <tr>
+  <td>&nbsp;
+  <tr>
+  <td>
+  <td align="center">
+    <div id="distribution-xaxis">Value</div>
+  </table>
 </div>
 
 </body>

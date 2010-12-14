@@ -25,129 +25,43 @@ var fs = require('fs');
 var url = require('url');
 var querystring = require('querystring');
 var name = 'example-dtrace';
+var postmortem = false;
+var d;
 
-var fatal = function (err)
+var fatal = function (err, vars)
 {
+	var core = 'core.' + process.pid;
+	var contents = '', v;
+
 	sys.puts(name + ': ' + err);
-	process.exit(1);
-}
 
-var readConfiguration = function (fname)
+	if (!vars || postmortem)
+		process.exit(1);
+
+	sys.puts(name + ': dumping to ' + core);
+
+	for (v in vars) {
+		/*
+		 * We use JSON.stringify() instead of sys.inspect() because
+		 * the latter will mistakenly identify circularity in objects
+		 * that have multiple references within the inspected object.
+		 */
+		contents += v + ' = ' +
+		    JSON.stringify(vars[v]) + ';\n';
+	}
+
+	fs.writeFileSync(core, contents);
+};
+
+var warn = function (msg)
 {
-	var conf;
-	var defaults = { min: 0, max: 100000 }, prop;
-
-	try {
-		conf = fs.readFileSync(fname).toString();
-	} catch (err) {
-		fatal('could not open file "' + fname + '": ' + err);
-	}
-
-	try {
-		eval(conf);
-	} catch (err) {
-		d = defaults;
-		d.program = conf;
-		return;
-	}
-
-	if (!d || !(d instanceof Object)) {
-		fatal('configuration file "' + fname + '" did not set ' +
-		     'expected object "d"');
-	}
-
-	if (!d.program) {
-		if (!d.script) {
-			fatal('did not find D script or program in ' +
-			     'configuration file "' + fname + '"');
-		}
-
-		try {
-			d.program = fs.readFileSync(d.script).toString();
-		} catch (err) {
-			fatal('could not open specified script "' +
-			    d.script + '": ' + err);
-		}
-	}
-
-	for (prop in defaults) {
-		if (!d.hasOwnProperty(prop))
-			d[prop] = defaults[prop];
-	}
-}
-
-if (process.argv.length <= 2)
-	fatal('expected D script to execute or configuration file');
-
-readConfiguration(process.argv[process.argv.length - 1]);
-
-sys.puts('vvv D program vvv');
-sys.puts(d.program);
-sys.puts('^^^ D program ^^^');
-
-dtp = new libdtrace.Consumer();
-dtp.strcompile(d.program);
-dtp.go();
-
-var total = {};
-var decomposed = {};
-var present = {};
-
-var sample = 0;
-var keep = 3600;
-var start = 0;
-
-setInterval(function () {
-	sample = Math.floor((new Date()).valueOf() / 1000);
-
-	dtp.aggwalk(function (varid, key, val) {
-		switch (varid) {
-		case 1:
-			if (key.length != 0)
-				fatal("first aggregation must be unkeyed");
-
-			data = total;
-			break;
-
-		case 2:
-			if (key.length != 1)
-				fatal("second aggregation must have one key");
-
-			if (!decomposed[key[0]])
-				decomposed[key[0]] = {};
-
-			if (!present[key[0]])
-				present[key[0]] = 0;
-
-			data = decomposed[key[0]];
-			present[key[0]]++;
-			break;
-
-		default:
-			fatal("expected at most two aggregations");
-		}
-
-		data[sample] = val;
-	});
-
-	if (sample < keep)
-		return;
-
-	if (total[sample - keep])
-		delete total[sample - keep];
-
-	for (elem in decomposed) {
-		if (decomposed[elem][sample - keep]) {
-			delete decomposed[elem][sample - keep];
-			present[elem]--;
-		}
-	}
-}, 1000);
+	sys.puts(name + ': ' + msg);
+};
 
 var dynamic = function (req, res)
 {
 	var uri = url.parse(req.url, true);
-	var conf, c;
+	var conf, c, distribution;
 
 	sys.puts(sys.inspect(uri));
 
@@ -184,9 +98,10 @@ var dynamic = function (req, res)
 	if (!conf.base)
 		conf.base = sample - conf.nsamples;
 
-	if (uri.pathname == '/heatmap') {
+	if (uri.pathname == '/heatmap' ||
+	    (distribution = (uri.pathname == '/distribution'))) {
 		var primary, hue = [ 21 ], datasets;
-		var selected = [], elem;
+		var selected = [], labels = [], elem;
 
 		if (!uri.query.isolate) {
 			primary = heatmap.bucketize(total, conf);
@@ -198,7 +113,7 @@ var dynamic = function (req, res)
 
 		if (uri.query.selected) {
 			selected = uri.query.selected.split(',');
-		} else if (uri.query.vomit) {
+		} else if (uri.query.vomit && !distribution) {
 			/*
 			 * This is obscenely inefficient by every metric but
 			 * lines of code (but sometimes lines of code is
@@ -220,7 +135,7 @@ var dynamic = function (req, res)
 					continue;
 
 				var nary = heatmap.bucketize(data, conf);
-
+ 
 				if (primary)
 					heatmap.deduct(primary, nary);
 
@@ -230,6 +145,7 @@ var dynamic = function (req, res)
 					continue;
 
 				datasets.push(nary);
+				labels.push(selected[i]);
 				hue.push((hue[hue.length - 1] + (91)) % 360);
 			}
 		}
@@ -240,6 +156,29 @@ var dynamic = function (req, res)
 		if (datasets.length === 0) {
 			datasets = [ heatmap.bucketize({}, conf) ];
 			hue = [ 0 ];
+		}
+
+		if (distribution) {
+			var rval = {}, first;
+			var dist = heatmap.distribution;
+
+			if (!uri.query.isolate) {
+				rval.total = dist(primary, conf);
+				first = 1;
+			} else {
+				first = 0;
+			}
+
+			if (datasets.length > first) {
+				rval.decomposition = {};
+				for (i = first; i < datasets.length; i++) {
+					rval.decomposition[labels[i - first]] =
+					    dist(datasets[i], conf);
+				}
+			}
+
+			res.end(JSON.stringify(rval));
+			return;
 		}
 
 		heatmap.normalize(datasets, conf);
@@ -302,6 +241,163 @@ var dynamic = function (req, res)
 	res.end();
 }
 
+var processCore = function (fname)
+{
+	sys.puts(name + ': processing core file ' + fname);
+
+	if (!req || !(req instanceof Object) || !req.href) {
+		fatal('core file "' + fname + '" did not set ' +
+		     'expected object "req"');
+	}
+
+	/*
+	 * Now call dynamic() with a bogus req and res.
+	 */
+	dynamic({ url: req.href }, {
+		writeHead: function () {}, 
+		end: function (str) { sys.puts(str) }
+	});
+
+	process.exit(0);
+}
+
+var readConfiguration = function (fname)
+{
+	var conf;
+	var defaults = { min: 0, max: 100000 }, prop;
+
+	try {
+		conf = fs.readFileSync(fname).toString();
+	} catch (err) {
+		fatal('could not open file "' + fname + '": ' + err);
+	}
+
+	try {
+		eval(conf);
+	} catch (err) {
+		d = defaults;
+		d.program = conf;
+		return;
+	}
+
+	if (!d || !(d instanceof Object)) {
+		if (postmortem) {
+			/*
+			 * We just read a dump of state; we'll process that
+			 * explicitly.
+			 */
+			processCore(fname);
+		}
+
+		fatal('configuration file "' + fname + '" did not set ' +
+		     'expected object "d"');
+	}
+
+	if (!d.program) {
+		if (!d.script) {
+			fatal('did not find D script or program in ' +
+			     'configuration file "' + fname + '"');
+		}
+
+		try {
+			d.program = fs.readFileSync(d.script).toString();
+		} catch (err) {
+			fatal('could not open specified script "' +
+			    d.script + '": ' + err);
+		}
+	}
+
+	for (prop in defaults) {
+		if (!d.hasOwnProperty(prop))
+			d[prop] = defaults[prop];
+	}
+}
+
+if (process.argv.length <= 2)
+	fatal('expected D script to execute or configuration file');
+
+readConfiguration(process.argv[2]);
+
+sys.puts('vvv D program vvv');
+sys.puts(d.program);
+sys.puts('^^^ D program ^^^');
+
+dtp = new libdtrace.Consumer();
+dtp.strcompile(d.program);
+dtp.go();
+
+var total = {};
+var decomposed = {};
+var present = {};
+
+var sample = 0;
+var keep = 3600;
+
+setInterval(function () {
+	var elem;
+
+	sample = Math.floor((new Date()).valueOf() / 1000);
+	
+	if (total[sample]) {
+		/*
+		 * We're seeing a dup.  If we haven't seen the next sample,
+		 * we'll nudge our sample forward.  Otherwise, we're seeing
+		 * serious delays that has resulted in many of our intervals
+		 * being delivered in short order -- and we'll drop this
+		 * sample.
+		 */
+		if (!total[sample + 1]) {
+			sample++;
+		} else {
+			warn('dropping duplicate sample ' + sample);
+			return;
+		}
+	}
+
+	dtp.aggwalk(function (varid, key, val) {
+		switch (varid) {
+		case 1:
+			if (key.length != 0)
+				fatal("first aggregation must be unkeyed");
+
+			data = total;
+			break;
+
+		case 2:
+			if (key.length != 1)
+				fatal("second aggregation must have one key");
+
+			if (!decomposed[key[0]])
+				decomposed[key[0]] = {};
+
+			if (!present[key[0]])
+				present[key[0]] = 0;
+
+			data = decomposed[key[0]];
+			present[key[0]]++;
+			break;
+
+		default:
+			fatal("expected at most two aggregations");
+		}
+
+		data[sample] = val;
+	});
+
+	if (sample < keep)
+		return;
+
+	if (total[sample - keep])
+		delete total[sample - keep];
+
+	for (elem in decomposed) {
+		if (decomposed[elem][sample - keep]) {
+			delete decomposed[elem][sample - keep];
+			present[elem]--;
+		}
+	}
+}, 1000);
+
 http.createServer(function (req, res) {
 	var uri = url.parse(req.url).pathname;
 	var index = false;
@@ -318,6 +414,23 @@ http.createServer(function (req, res) {
 			if (index) {
 				fatal('could not find index file "' +
 				     filename + '"');
+			}
+
+			try {
+				return (dynamic(req, res));
+			} catch (err) {
+				/*
+				 * If we have an error, we're going to dump
+				 * variables that will allow us to reconstruct
+				 * sufficient state to debug the issue.
+				 */
+				fatal(err, {
+					total: total,
+					decomposed: decomposed,
+					req: url.parse(req.url, true),
+					sample: sample,
+					postmortem: true
+				});
 			}
 
 			return (dynamic(req, res));
