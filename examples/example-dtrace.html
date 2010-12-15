@@ -39,6 +39,7 @@
     <script type="text/javascript" src="js/jquery-ui-1.8.6.custom.min.js"></script>
     <script type="text/javascript" src="js/jquery.dataTables.js"></script>
     <script type="text/javascript" src="js/jquery.flot.js"></script>
+    <script type="text/javascript" src="js/jquery.inlineedit.js"></script>
     <script type="text/javascript">
 
 var rows = {};
@@ -279,6 +280,8 @@ var initialize = function (config)
 
 	if (config.title)
 		$("#title").text(config.title);
+
+	$("#title").inlineEdit({ placeholder: '' });
 
 	decomposed.primary = $('#decomposed').dataTable({
 		aaData: [],
