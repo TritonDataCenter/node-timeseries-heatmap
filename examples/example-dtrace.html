@@ -64,7 +64,7 @@ var sampleToString = function (sample)
 	return (date.getFullYear() + '-' + (date.getMonth() + 1) + '-' +
 	    date.getDate() + ' ' + pad(date.getHours()) + ':' +
 	    pad(date.getMinutes()) + ':' + pad(date.getSeconds()));
-}
+};
 
 var updateDecomposed = function (decomp)
 {
@@ -74,7 +74,7 @@ var updateDecomposed = function (decomp)
 		if (!rows.hasOwnProperty(elem))
 			rows[elem] = table.fnAddData([ elem ]);
 	}
-}
+};
 
 var update = function ()
 {
@@ -82,7 +82,7 @@ var update = function ()
 	var c;
 
 	if (selected.length > 0)
-		img += '&selected=' + selected.join(',')
+		img += '&selected=' + selected.join(',');
 
 	if (paused)
 		img += '&base=' + base;
@@ -117,7 +117,7 @@ var updateDistribution = function ()
 	}
 
 	if (selected.length > 0)
-		url += '&selected=' + selected.join(',')
+		url += '&selected=' + selected.join(',');
 
 	$.ajax({ type: 'GET', url: url, success: function (rval) {
 		var distribution = $("#distribution-dialog");
@@ -203,7 +203,7 @@ var details = function (x, y)
 
 		$("#dialog").dialog('open');
 	} });
-}
+};
 
 var zoom = function (factor)
 {
@@ -211,13 +211,13 @@ var zoom = function (factor)
 	base += Math.floor((conf.nsamples - nsamples) / 2);
 	conf.nsamples = nsamples;
 	update();
-}
+};
 
 var pan = function (factor)
 {
-	base += Math.floor(conf.nsamples * factor)
+	base += Math.floor(conf.nsamples * factor);
 	update();
-}
+};
 
 var click = function (which, event)
 {
@@ -258,7 +258,7 @@ var click = function (which, event)
 
 	selected.push(selection);
 	update();
-}
+};
 
 var initialize = function (config)
 {
@@ -324,7 +324,7 @@ var initialize = function (config)
 
 	$("#pause").button({
 		text: false,
-		icons: { primary: "ui-icon-pause" },
+		icons: { primary: "ui-icon-pause" }
 	}).click(function () {
 		var options;
 
@@ -366,19 +366,19 @@ var initialize = function (config)
 	$("#earlier").button({
 		text: false,
 		icons: { primary: "ui-icon-seek-prev" }
-	}).click(function () { pan(-panfactor); })
+	}).click(function () { pan(-panfactor); });
 
 	$("#later").button({
 		text: false,
 		icons: { primary: "ui-icon-seek-next" }
-	}).click(function () { pan(panfactor); })
+	}).click(function () { pan(panfactor); });
 
 	var booleans = {
 		isolate: { field: 'isolate', antonym: 'integrate' },
 		exclude: { field: 'exclude', antonym: 'include' },
 		weight: { field: 'weighbyrange', antonym: 'count' },
 		linear: { field: 'linear', antonym: 'rank' },
-		decompose: { field: 'vomit', antonym: 'recompose' },
+		decompose: { field: 'vomit', antonym: 'recompose' }
 	};
 
 	$("#distribution").button({
@@ -400,11 +400,11 @@ var initialize = function (config)
 			update();
 
 			$(this).button("option", options);
-		})
+		});
 	};
 
-	for (var boolean in booleans)
-		$("#" + boolean).button({ test: true }).click(clicker(boolean));
+	for (var b in booleans)
+		$("#" + b).button({ test: true }).click(clicker(b));
 
 	setInterval(function () {
 		if (!paused)

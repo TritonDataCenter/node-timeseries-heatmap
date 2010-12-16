@@ -61,7 +61,7 @@ var warn = function (msg)
 var dynamic = function (req, res)
 {
 	var uri = url.parse(req.url, true);
-	var conf, c, distribution;
+	var conf, c, distribution, rval, elem;
 
 	sys.puts(sys.inspect(uri));
 
@@ -101,7 +101,7 @@ var dynamic = function (req, res)
 	if (uri.pathname == '/heatmap' ||
 	    (distribution = (uri.pathname == '/distribution'))) {
 		var primary, hue = [ 21 ], datasets;
-		var selected = [], labels = [], elem;
+		var selected = [], labels = [];
 
 		if (!uri.query.isolate) {
 			primary = heatmap.bucketize(total, conf);
@@ -159,8 +159,9 @@ var dynamic = function (req, res)
 		}
 
 		if (distribution) {
-			var rval = {}, first;
-			var dist = heatmap.distribution;
+			var dist = heatmap.distribution, first;
+
+			rval = {};
 
 			if (!uri.query.isolate) {
 				rval.total = dist(primary, conf);
@@ -184,7 +185,7 @@ var dynamic = function (req, res)
 		heatmap.normalize(datasets, conf);
 
 		conf.hue = hue;
-		conf.saturation = [ 0, .9 ];
+		conf.saturation = [ 0, 0.9 ];
 		conf.value = 0.95;
 
 		var png = heatmap.generate(datasets, conf);
@@ -206,12 +207,12 @@ var dynamic = function (req, res)
 			nsamples: 1
 		};
 
-		var rval = { sample: conf.base, min: conf.min, max: conf.max };
+		rval = { sample: conf.base, min: conf.min, max: conf.max };
 
 		rval.total = Math.round(heatmap.bucketize(total, conf)[0][0]);
 
-		if (rval.total != 0) {
-			var elem, b;
+		if (rval.total !== 0) {
+			var b;
 
 			rval.decomposition = {};
 
@@ -239,7 +240,7 @@ var dynamic = function (req, res)
 
 	res.writeHead(404);
 	res.end();
-}
+};
 
 var processCore = function (fname)
 {
@@ -255,11 +256,11 @@ var processCore = function (fname)
 	 */
 	dynamic({ url: req.href }, {
 		writeHead: function () {}, 
-		end: function (str) { sys.puts(str) }
+		end: function (str) { sys.puts(str); }
 	});
 
 	process.exit(0);
-}
+};
 
 var readConfiguration = function (fname)
 {
@@ -311,7 +312,7 @@ var readConfiguration = function (fname)
 		if (!d.hasOwnProperty(prop))
 			d[prop] = defaults[prop];
 	}
-}
+};
 
 if (process.argv.length <= 2)
 	fatal('expected D script to execute or configuration file');
@@ -357,7 +358,7 @@ setInterval(function () {
 	dtp.aggwalk(function (varid, key, val) {
 		switch (varid) {
 		case 1:
-			if (key.length != 0)
+			if (key.length !== 0)
 				fatal("first aggregation must be unkeyed");
 
 			data = total;
@@ -379,6 +380,7 @@ setInterval(function () {
 
 		default:
 			fatal("expected at most two aggregations");
+			break;
 		}
 
 		data[sample] = val;
@@ -439,6 +441,8 @@ http.createServer(function (req, res) {
 		res.writeHead(200);
 		res.write(file);
 		res.end();
+
+		return (undefined);
 	});
 }).listen(port);
 
