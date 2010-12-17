@@ -56,6 +56,11 @@ var panfactor = 0.2;
 var conf = { nbuckets: 0, min: 0, max: 0, nsamples: 60 };
 var decomposed = {};
 
+var capitalize = function (str)
+{
+	return (str.charAt(0).toUpperCase() + str.slice(1));
+};
+
 var sampleToString = function (sample)
 {
 	var date = new Date(sample * 1000);
@@ -103,13 +108,13 @@ var update = function ()
 	} });
 };
 
-var updateDistribution = function ()
+var updateAuxiliary = function (aux, opts)
 {
-	var url = '/distribution?base=' + base;
-	var c;
+	var url = '/' + aux + '?base=' + base;
 	var isolated = conf.isolated;
-	var title = 'Distribution from ' + sampleToString(base) + ' to ' +
-	    sampleToString(base + (conf.nsamples - 1));
+	var title = capitalize(aux) + ' from ' + sampleToString(base) +
+	    ' to ' + sampleToString(base + (conf.nsamples - 1));
+	var c;
 
 	for (c in conf) {
 		if (conf[c])
@@ -120,12 +125,12 @@ var updateDistribution = function ()
 		url += '&selected=' + selected.join(',');
 
 	$.ajax({ type: 'GET', url: url, success: function (rval) {
-		var distribution = $("#distribution-dialog");
+		var dialog = $("#" + aux + "-dialog");
 		var elem, c = 0;
 
-		distribution.dialog('close');
-		distribution.dialog('option', 'title', title);
-		distribution.dialog('open');
+		dialog.dialog('close');
+		dialog.dialog('option', 'title', title);
+		dialog.dialog('open');
 
 		var data = [];
 
@@ -146,12 +151,12 @@ var updateDistribution = function ()
 			}
 		}
 
-		$.plot($("#distribution-plot"), data, {
-			grid: {
-				hoverable: true
-			}
-		});
+		if (!opts)
+			opts = {};
 
+		opts.grid = { hoverable: true };
+
+		$.plot($("#" + aux + "-plot"), data, opts);
 	} });
 };
 
@@ -272,10 +277,16 @@ var initialize = function (config)
 	});
 
 	$("#dialog").dialog({ autoOpen: false, width: 700, height: 400 });
+	$("#rangetext").text(conf.min + ' - ' + conf.max + ' ' + units);
+
 	$("#distribution-dialog").dialog({ autoOpen: false,
 	    width: 900, height: 410 });
-	$("#rangetext").text(conf.min + ' - ' + conf.max + ' ' + units);
 	$("#distribution-xaxis").text('Value' + (config.units ? 
+	    (' (' + config.units + ')') : ''));
+
+	$("#average-dialog").dialog({ autoOpen: false,
+	    width: 900, height: 410 });
+	$("#average-yaxis").text('Average' + (config.units ? 
 	    (' (' + config.units + ')') : ''));
 
 	if (config.title)
@@ -383,7 +394,15 @@ var initialize = function (config)
 
 	$("#distribution").button({
 		text: true
-	}).click(updateDistribution);
+	}).click(function () {
+		updateAuxiliary('distribution');
+	});
+
+	$("#average").button({
+		text: true
+	}).click(function () {
+		updateAuxiliary('average', { xaxis: { ticks: [ 0 ] } });
+	});
 
 	var clicker = function (label) {
 		return (function () {
@@ -447,6 +466,7 @@ $(document).ready(function() {
 		<button id="linear">linear</button>
 		<button id="decompose">decompose</button>
 		<button id="distribution">distribution</button>
+		<button id="average">average</button>
 	</span>	
 <td align="right">
 		<div id="nbuckets" style="width:200px;"></div>
@@ -468,7 +488,7 @@ Displaying range:
       border="0" class="display" id="dialog-decomposed"><tbody></tbody></table> 
 </div>
 
-<div id="distribution-dialog" title="Details">
+<div id="distribution-dialog" title="Distribution">
   <table align="center" cellpadding="0" cellspacing="0"> 
   <tr>
   <td align="right">
@@ -481,6 +501,22 @@ Displaying range:
   <td>
   <td align="center">
     <div id="distribution-xaxis">Value</div>
+  </table>
+</div>
+
+<div id="average-dialog" title="Average">
+  <table align="center" cellpadding="0" cellspacing="0"> 
+  <tr>
+  <td align="right">
+    <div id="average-yaxis" class="rotate">Average</div>
+  <td align="center">
+    <div id="average-plot" style="width:775px;height:300px"></div>
+  <tr>
+  <td>&nbsp;
+  <tr>
+  <td>
+  <td align="center">
+    <div id="average-xaxis">Time</div>
   </table>
 </div>
 

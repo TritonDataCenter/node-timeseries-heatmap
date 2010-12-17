@@ -61,7 +61,7 @@ var warn = function (msg)
 var dynamic = function (req, res)
 {
 	var uri = url.parse(req.url, true);
-	var conf, c, distribution, rval, elem;
+	var conf, a, c, rval, elem, auxfunc = undefined;
 
 	sys.puts(sys.inspect(uri));
 
@@ -98,8 +98,19 @@ var dynamic = function (req, res)
 	if (!conf.base)
 		conf.base = sample - conf.nsamples;
 
-	if (uri.pathname == '/heatmap' ||
-	    (distribution = (uri.pathname == '/distribution'))) {
+	var auxiliaries = {
+		distribution: heatmap.distribution,
+		average: heatmap.average
+	};
+
+	for (aux in auxiliaries) {
+		if (uri.pathname == '/' + aux) {
+			auxfunc = auxiliaries[aux];
+			break;
+		}
+	}
+
+	if (uri.pathname == '/heatmap' || auxfunc) {
 		var primary, hue = [ 21 ], datasets;
 		var selected = [], labels = [];
 
@@ -113,7 +124,7 @@ var dynamic = function (req, res)
 
 		if (uri.query.selected) {
 			selected = uri.query.selected.split(',');
-		} else if (uri.query.vomit && !distribution) {
+		} else if (uri.query.vomit && !auxfunc) {
 			/*
 			 * This is obscenely inefficient by every metric but
 			 * lines of code (but sometimes lines of code is
@@ -158,13 +169,13 @@ var dynamic = function (req, res)
 			hue = [ 0 ];
 		}
 
-		if (distribution) {
-			var dist = heatmap.distribution, first;
+		if (auxfunc) {
+			var first;
 
 			rval = {};
 
 			if (!uri.query.isolate) {
-				rval.total = dist(primary, conf);
+				rval.total = auxfunc(primary, conf);
 				first = 1;
 			} else {
 				first = 0;
@@ -174,7 +185,7 @@ var dynamic = function (req, res)
 				rval.decomposition = {};
 				for (i = first; i < datasets.length; i++) {
 					rval.decomposition[labels[i - first]] =
-					    dist(datasets[i], conf);
+					    auxfunc(datasets[i], conf);
 				}
 			}
 
