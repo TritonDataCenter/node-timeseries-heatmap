@@ -1,0 +1,9 @@
+{
+	"name":		"heatmap",
+	"version":	"0.0.1",
+	"description":	"Joyent Heatmap Library",
+	"homepage":	"https://hub.joyent.com/wiki/display/dev/Introspection",
+	"author":	"Joyent (joyent.com)",
+	"engines": 	{ "node": "*" },
+	"main":		"./lib/heatmap"
+}
