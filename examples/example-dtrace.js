@@ -69,7 +69,6 @@ var dynamic = function (req, res)
 		height: 300,
 		width: 1000,
 		min: 0,
-		max: 100000,
 		nbuckets: 100,
 		nsamples: 60,
 		base: 0,
@@ -88,7 +87,7 @@ var dynamic = function (req, res)
 	});	
 
 	for (c in uri.query) {
-		if (conf.hasOwnProperty(c))
+		if (c == 'max' || conf.hasOwnProperty(c))
 			conf[c] = parseInt(uri.query[c], 10);
 
 		if (booleans[c])
@@ -201,7 +200,8 @@ var dynamic = function (req, res)
 
 		var png = heatmap.generate(datasets, conf);
 
-		res.end('{"base": ' + conf.base + ',"image": "' +
+		res.end('{"base": ' + conf.base + ',"max":' + conf.max +
+		    ',"image": "' +
 		    png.encodeSync().toString('base64') +
 		    '","decomposition":' + JSON.stringify(present) + '}');
 		return;
@@ -276,7 +276,7 @@ var processCore = function (fname)
 var readConfiguration = function (fname)
 {
 	var conf;
-	var defaults = { min: 0, max: 100000 }, prop;
+	var defaults = { min: 0 }, prop;
 
 	try {
 		conf = fs.readFileSync(fname).toString();
@@ -347,6 +347,7 @@ var keep = 3600;
 
 setInterval(function () {
 	var elem;
+	var max = dtp.aggmax();
 
 	sample = Math.floor((new Date()).valueOf() / 1000);
 	
@@ -367,6 +368,11 @@ setInterval(function () {
 	}
 
 	dtp.aggwalk(function (varid, key, val) {
+		if (val[val.length - 1][0][1] == max) {
+			warn('value exceeded maximum in aggregation');
+			val.pop();
+		}
+
 		switch (varid) {
 		case 1:
 			if (key.length !== 0)

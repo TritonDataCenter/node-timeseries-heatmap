@@ -52,6 +52,7 @@ var paused = false;
 var base = 0;
 var zoomin = 0.8;
 var panfactor = 0.2;
+var lastmax;
 
 var conf = { nbuckets: 0, min: 0, max: 0, nsamples: 60 };
 var decomposed = {};
@@ -81,6 +82,36 @@ var updateDecomposed = function (decomp)
 	}
 };
 
+var updateMax = function (conf, max)
+{
+	var min = conf.min;
+
+	$("#rangetext").text(min + ' - ' + max + ' ' + config.units);
+
+	$("#range").slider({
+		orientation: "vertical",
+		range: true,
+		min: min,
+		max: max,
+		values: [ 0, max ],
+		stop: function(event, ui) {
+			conf.min = ui.values[0];
+
+			if (ui.values[1] == max) {
+				delete conf.max;
+			} else {
+				conf.max = ui.values[1];
+			}
+
+			update();
+			$("#rangetext").text(conf.min + ' - ' + ui.values[1] +
+			    ' ' + config.units);
+		}
+	});
+
+	lastmax = max;
+};
+
 var update = function ()
 {
 	var img = '/heatmap?gen=' + gen++;
@@ -102,6 +133,9 @@ var update = function ()
 		    rval.image);
 
 		updateDecomposed(rval.decomposition);
+
+		if (!conf.max && rval.max && rval.max != lastmax)
+			updateMax(conf, rval.max);
 
 		if (!paused)
 			base = rval.base;
@@ -265,19 +299,24 @@ var click = function (which, event)
 	update();
 };
 
-var initialize = function (config)
+var initialize = function ()
 {
 	var units = config.units ? config.units : '';
 
+	config.units = units;
+
 	conf.min = config.min;
-	conf.max = config.max;
+
+	if (config.max) {
+		conf.max = config.max;
+		updateMax(conf.min, conf.max, conf);
+	}
 
 	$("#decomposed tbody").click(function(event) {
 		click('primary', event);
 	});
 
 	$("#dialog").dialog({ autoOpen: false, width: 700, height: 400 });
-	$("#rangetext").text(conf.min + ' - ' + conf.max + ' ' + units);
 
 	$("#distribution-dialog").dialog({ autoOpen: false,
 	    width: 900, height: 410 });
@@ -316,21 +355,6 @@ var initialize = function (config)
 			conf.nbuckets = ui.value;
 			update();
 		}
-	});
-
-	$("#range").slider({
-		orientation: "vertical",
-		range: true,
-		min: conf.min,
-		max: conf.max,
-		values: [ 0, conf.max ],
-		stop: function(event, ui) {
-			conf.min = ui.values[0];
-			conf.max = ui.values[1];
-			update();
-			$("#rangetext").text(conf.min + ' - ' + conf.max +
-			    ' ' + units);
-		}	
 	});
 
 	$("#pause").button({
@@ -433,7 +457,8 @@ var initialize = function (config)
 
 $(document).ready(function() {
 	$.ajax({ type: 'GET', url: '/conf', success: function (rval) {
-		initialize(rval);
+		config = rval;
+		initialize();
 	} });
 });
 
