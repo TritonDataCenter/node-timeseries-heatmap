@@ -14,18 +14,18 @@
  * note that the client-side code is contained in example-dtrace.html.)
  */
 var path = require('path');
-require.paths.unshift(path.dirname(__dirname) + '/lib');
 
 var http = require('http');
 var port = process.env.PORT || 8001;
 var sys = require('sys');
-var heatmap = require('heatmap');
+var heatmap = require('../lib/heatmap');
 var libdtrace = require('libdtrace');
 var fs = require('fs');
 var url = require('url');
 var querystring = require('querystring');
 var name = 'example-dtrace';
 var postmortem = false;
+var interval = 5000;
 var d;
 
 var fatal = function (err, vars)
@@ -73,7 +73,8 @@ var dynamic = function (req, res)
 		nsamples: 60,
 		base: 0,
 		x: 0,
-		y: 0
+		y: 0,
+		step: Math.floor(interval / 1000)
 	};
 
 	booleans = {
@@ -346,10 +347,11 @@ var sample = 0;
 var keep = 3600;
 
 setInterval(function () {
-	var elem;
+	var when, elem;
 	var max = dtp.aggmax();
 
-	sample = Math.floor((new Date()).valueOf() / 1000);
+	when = Date.now();
+	sample = (when - when % interval) / 1000;
 	
 	if (total[sample]) {
 		/*
@@ -415,7 +417,7 @@ setInterval(function () {
 			present[elem]--;
 		}
 	}
-}, 1000);
+}, interval);
 
 http.createServer(function (req, res) {
 	var uri = url.parse(req.url).pathname;
