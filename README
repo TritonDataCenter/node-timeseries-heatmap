@@ -1,6 +1,0 @@
-
-This is the repo for node-heatmap, a node module that uses node-png to render
-heatmaps.  This is a component of the cloud-analytics project; project lead
-is Dave Pacheco (dap@joyent.com).  Engineering contact for node-heatmap is
-Bryan Cantrill (bryan@joyent.com).  
-
